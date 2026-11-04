@@ -153,7 +153,11 @@ func ListAll(root string, poolFor func(repoRoot string) string) ([]Worktree, err
 			continue
 		}
 		repo := filepath.Join(root, e.Name())
-		if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
+		gitMarker, err := os.Stat(filepath.Join(repo, ".git"))
+		if err != nil || !gitMarker.IsDir() {
+			// .git is a file inside a linked worktree; only main checkouts own
+			// the full worktree list, otherwise every linked tree would be
+			// scanned again as if it were its own repository.
 			continue
 		}
 		trees, err := List(repo, poolFor(repo))
