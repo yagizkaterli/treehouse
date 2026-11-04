@@ -4,6 +4,7 @@ package organize
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -24,6 +25,7 @@ type Entry struct {
 // Worktree is an Entry enriched with classification and repository facts.
 type Worktree struct {
 	Entry
+	Repo       string
 	Kind       string // "main" | "pool" | "orphan" | "stale"
 	Owner      string
 	Dirty      int
@@ -136,6 +138,34 @@ func List(repoRoot, poolDir string) ([]Worktree, error) {
 		return trees[i].Path < trees[j].Path
 	})
 	return trees, nil
+}
+
+// ListAll inventories every immediate child directory of root that is a git
+// repository. poolFor resolves the pool directory of one repository, or "".
+func ListAll(root string, poolFor func(repoRoot string) string) ([]Worktree, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	var all []Worktree
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		repo := filepath.Join(root, e.Name())
+		if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
+			continue
+		}
+		trees, err := List(repo, poolFor(repo))
+		if err != nil {
+			continue
+		}
+		for i := range trees {
+			trees[i].Repo = e.Name()
+		}
+		all = append(all, trees...)
+	}
+	return all, nil
 }
 
 func mainRefOf(repoRoot string, main Entry) string {

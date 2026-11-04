@@ -117,3 +117,40 @@ func TestListFindsOrphanWorktree(t *testing.T) {
 		t.Fatalf("ilk kayit main olmali: %+v", trees[0])
 	}
 }
+
+func TestListAllAcrossRepos(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git yok")
+	}
+	root := t.TempDir()
+	for _, ad := range []string{"bir", "iki"} {
+		repo := filepath.Join(root, ad)
+		if err := os.MkdirAll(repo, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		git(t, repo, "init", "-q", "-b", "main")
+		if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte(ad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git(t, repo, "add", ".")
+		git(t, repo, "commit", "-q", "-m", "ilk")
+		git(t, repo, "worktree", "add", "-q", "-b", "dal", filepath.Join(root, ad+"-wt"))
+	}
+	all, err := ListAll(root, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(all) != 4 {
+		t.Fatalf("worktree = %d, want 4: %+v", len(all), all)
+	}
+	gorulen := map[string]bool{}
+	for _, w := range all {
+		if w.Repo == "" {
+			t.Fatalf("repo etiketi bos: %+v", w)
+		}
+		gorulen[w.Repo] = true
+	}
+	if !gorulen["bir"] || !gorulen["iki"] {
+		t.Fatalf("repo kapsami eksik: %v", gorulen)
+	}
+}

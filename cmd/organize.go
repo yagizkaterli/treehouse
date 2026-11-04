@@ -23,9 +23,12 @@ var (
 	organizePrune bool
 	organizeRepo  string
 	organizePR    bool
+	organizeAll   bool
+	organizeKok   string
 )
 
 type organizeJSONItem struct {
+	Repo       string `json:"repo,omitempty"`
 	Path       string `json:"path"`
 	Kind       string `json:"kind"`
 	Owner      string `json:"owner"`
@@ -52,23 +55,34 @@ pull request that branch already belongs to. Read-only by default.`,
 			repoRoot string
 			err      error
 		)
+		poolFor := func(repo string) string {
+			cfg, cfgErr := config.Load(repo)
+			if cfgErr != nil {
+				return ""
+			}
+			resolved, rErr := config.ResolvePoolDir(repo, config.ResolveRoot(rootFlag, cfg))
+			if rErr != nil {
+				return ""
+			}
+			return resolved
+		}
 		if organizeRepo != "" {
 			repoRoot, err = vcs.FindMainRepoRootFrom(organizeRepo)
+		} else if organizeAll {
+			repoRoot = organizeKok
+			if repoRoot == "" {
+				repoRoot, err = os.Getwd()
+			}
 		} else {
 			repoRoot, err = vcs.FindMainRepoRoot()
 		}
-		if err != nil {
+		if err != nil && !organizeAll {
 			return fmt.Errorf("not in a git repository: %w", err)
 		}
 
-		poolDir := ""
-		if cfg, cfgErr := config.Load(repoRoot); cfgErr == nil {
-			if resolved, rErr := config.ResolvePoolDir(repoRoot, config.ResolveRoot(rootFlag, cfg)); rErr == nil {
-				poolDir = resolved
-			}
-		}
+		poolDir := poolFor(repoRoot)
 
-		if organizePrune {
+		if organizePrune && !organizeAll {
 			if out, pErr := organize.Prune(repoRoot); pErr != nil {
 				return fmt.Errorf("worktree prune failed: %w", pErr)
 			} else if strings.TrimSpace(out) != "" {
@@ -76,7 +90,12 @@ pull request that branch already belongs to. Read-only by default.`,
 			}
 		}
 
-		trees, err := organize.List(repoRoot, poolDir)
+		var trees []organize.Worktree
+		if organizeAll {
+			trees, err = organize.ListAll(repoRoot, poolFor)
+		} else {
+			trees, err = organize.List(repoRoot, poolDir)
+		}
 		if err != nil {
 			return err
 		}
@@ -97,7 +116,7 @@ pull request that branch already belongs to. Read-only by default.`,
 			items := make([]organizeJSONItem, 0, len(trees))
 			for _, t := range trees {
 				item := organizeJSONItem{
-					Path: t.Path, Kind: t.Kind, Owner: t.Owner, Branch: t.Branch,
+					Repo: t.Repo, Path: t.Path, Kind: t.Kind, Owner: t.Owner, Branch: t.Branch,
 					Head: short(t.Head), Locked: t.Locked, Dirty: t.Dirty,
 					Ahead: t.Ahead, Behind: t.Behind, PR: prs[t.Branch],
 				}
@@ -112,7 +131,11 @@ pull request that branch already belongs to. Read-only by default.`,
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "TÜR\tSAHİP\tDAL\tKİRLİ\tAHEAD/BEHİND\tSON\tYOL")
+		if organizeAll {
+			fmt.Fprintln(w, "REPO\tTÜR\tSAHİP\tDAL\tKİRLİ\tAHEAD/BEHİND\tSON\tYOL")
+		} else {
+			fmt.Fprintln(w, "TÜR\tSAHİP\tDAL\tKİRLİ\tAHEAD/BEHİND\tSON\tYOL")
+		}
 		bold := color.New(color.Bold)
 		for _, t := range trees {
 			dirty := strconv.Itoa(t.Dirty)
@@ -129,6 +152,9 @@ pull request that branch already belongs to. Read-only by default.`,
 			}
 			if p := prs[t.Branch]; p != "" {
 				dal += " #" + p
+			}
+			if organizeAll {
+				fmt.Fprintf(w, "%s\t", t.Repo)
 			}
 			bold.Fprintf(w, "%s", strings.ToUpper(t.Kind))
 			fmt.Fprintf(w, "\t%s\t%s\t%s\t%d/%d\t%s\t%s\n", t.Owner, dal, dirty, t.Ahead, t.Behind, son, t.Path)
@@ -176,5 +202,7 @@ func init() {
 	organizeCmd.Flags().BoolVar(&organizePrune, "prune", false, "drop metadata for missing worktrees before listing")
 	organizeCmd.Flags().BoolVar(&organizePR, "pr", false, "attach GitHub pull-request state per branch (gh required)")
 	organizeCmd.Flags().StringVar(&organizeRepo, "repo", "", "repository path (default: current directory)")
+	organizeCmd.Flags().BoolVar(&organizeAll, "all", false, "inventory every git repository directly under --kok")
+	organizeCmd.Flags().StringVar(&organizeKok, "kok", "", "root scanned by --all (default: current directory)")
 	rootCmd.AddCommand(organizeCmd)
 }

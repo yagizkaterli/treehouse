@@ -176,6 +176,10 @@ MAIN    -       main             0      0/0           2026-11-04 03:59  /repo
 ORPHAN  gecici  ci/otomerge      0      14/16         2026-11-04 04:01  /tmp/wt-otomerge
 ```
 
+`organize --all --kok <dir>` sweeps every repository directly under a workspace
+root, so one command answers the whole machine's question — useful when agents
+leave worktrees across several checkouts.
+
 Read-only by default: it never removes a worktree. `--prune` only drops stale
 git bookkeeping for directories that no longer exist.
 
@@ -215,6 +219,8 @@ git bookkeeping for directories that no longer exist.
 | `organize` | `--pr` | Attach the GitHub pull request (`number:state`) already opened from each branch |
 | `organize` | `--prune` | Drop metadata for missing worktrees before listing (no files touched) |
 | `organize` | `--repo` | Inspect another repository instead of the current directory |
+| `organize` | `--all` | Inventory every git repository directly under `--kok` |
+| `organize` | `--kok` | Root scanned by `--all` (default: current directory) |
 | `return`  | `--force` | Clean, reset, and return without prompting |
 | `return`  | `--if-lease-id` | Return only if the current lease has the expected per-acquisition identity |
 | `return`  | `--if-lease-holder` | Return only if the current lease has the expected holder |
