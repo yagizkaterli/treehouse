@@ -160,6 +160,25 @@ You can instead keep the pool [inside the project](#in-project-storage) with `--
   It is a dry run unless you pass `--yes`.
 - **Self-healing get** - `treehouse get` prunes stale git worktree bookkeeping (e.g. left behind by a crashed or forcibly removed worktree) before adding a new worktree, so a prunable registration never wedges the pool with a "missing but already registered worktree" error.
 
+### Organizing worktrees you already made
+
+A pool only knows the worktrees it created. Real sessions also leave worktrees
+behind in ad-hoc locations — a temporary directory, another checkout root, a
+lane directory. `treehouse organize` reads `git worktree list` for the whole
+repository and classifies every entry as `main`, `pool`, `orphan` or `stale`,
+then reports lane owner, dirty file count, ahead/behind against the main branch,
+last commit and (with `--pr`) the pull request that branch already belongs to.
+
+```
+$ treehouse organize --pr
+TÜR     SAHİP   DAL              KİRLİ  AHEAD/BEHİND  SON               YOL
+MAIN    -       main             0      0/0           2026-11-04 03:59  /repo
+ORPHAN  gecici  ci/otomerge      0      14/16         2026-11-04 04:01  /tmp/wt-otomerge
+```
+
+Read-only by default: it never removes a worktree. `--prune` only drops stale
+git bookkeeping for directories that no longer exist.
+
 ## CLI Reference
 
 | Command                    | Description                                          |
@@ -170,6 +189,7 @@ You can instead keep the pool [inside the project](#in-project-storage) with `--
 | `treehouse lease <name>`   | Durably lease an existing pool worktree in place, without touching its files or git state |
 | `treehouse enter <name>`   | Open a subshell in an existing worktree by name (the number from `status`), even if it is in use; pool state is left untouched |
 | `treehouse status`         | Show pool status (highlights leased and current worktrees) |
+| `treehouse organize`       | Inventory every worktree of the repo, including orphans outside the pool |
 | `treehouse return [path]`  | Release any lease and return a worktree only after verifying foreign processes stopped |
 | `treehouse prune`          | Dry-run removal of stale idle worktrees in the current repo pool |
 | `treehouse prune --all`    | Dry-run removal of stale idle worktrees across every managed pool |
@@ -191,6 +211,10 @@ You can instead keep the pool [inside the project](#in-project-storage) with `--
 | `lease`   | `--json` | Print `path`, `lease_id`, `lease_holder`, `leased_at`, and `base_branch` as JSON (`base_branch` is best-effort: empty when the slot records no explicit base and its own worktree cannot resolve a default) |
 | `enter`   | `--print-path` | Print only the worktree's absolute path to stdout instead of opening a subshell (for `cd "$(treehouse enter --print-path 1)"`) |
 | `status`  | `--json` | Print worktree status and lease metadata as JSON |
+| `organize` | `--json` | Print the full worktree inventory as JSON |
+| `organize` | `--pr` | Attach the GitHub pull request (`number:state`) already opened from each branch |
+| `organize` | `--prune` | Drop metadata for missing worktrees before listing (no files touched) |
+| `organize` | `--repo` | Inspect another repository instead of the current directory |
 | `return`  | `--force` | Clean, reset, and return without prompting |
 | `return`  | `--if-lease-id` | Return only if the current lease has the expected per-acquisition identity |
 | `return`  | `--if-lease-holder` | Return only if the current lease has the expected holder |
